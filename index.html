@@ -338,6 +338,21 @@
       <input type="file" id="fileImport" class="hidden" accept=".json">
       <div class="status" id="saveStatus">Pronto.</div>
     </div>
+    <div class="panel" style="padding-top:10px;">
+      <div style="text-align:right;">
+        <span id="btnAjusteManual" title="Modo edição" style="cursor:pointer;color:var(--muted);font-size:11px;opacity:.5;user-select:none;">⚙</span>
+      </div>
+      <div id="painelAjusteManual" class="hidden" style="margin-top:10px;">
+        <h2>Ajuste manual de saldo</h2>
+        <p class="small">Corrige o número direto, sem criar transação nem mexer no histórico do cofrinho. Use só pra acertar uma conta que ficou torta.</p>
+        <form id="formAjusteManual">
+          <input type="number" id="ajusteSaldoConta" step="0.01" placeholder="Novo saldo em conta (R$)">
+          <input type="number" id="ajusteSaldoCofrinho" step="0.01" placeholder="Novo saldo no cofrinho (R$)">
+          <button type="submit">Aplicar ajuste</button>
+        </form>
+        <p class="small" id="ajusteHint"></p>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -453,7 +468,7 @@ function renderSummary(){
     {label:'Saldo em conta', value: fmt(saldoConta), cls: saldoConta>=0?'cyan':'red'},
     {label:'Cofrinho', value: fmt(state.cofrinho.saldo), cls:'amber'},
     {label:'Receitas do mês', value: fmt(receitas), cls:'green'},
-    {label:'Despesas do mês', value: fmt(despesas).replace('R$ ', 'R$ -'), cls:'red'},
+    {label:'Despesas do mês', value: fmt(despesas), cls:'red'},
     {label:'Resultado do mês', value: fmt(receitas-despesas), cls:(receitas-despesas)>=0?'green':'red'},
   ];
   document.getElementById('summaryCards').innerHTML = cards.map(c=>
@@ -527,6 +542,14 @@ function renderTx(){
   }).join('');
   body.querySelectorAll('[data-del]').forEach(b=>{
     b.addEventListener('click', ()=>{
+      const t = state.transactions.find(x=>x.id===b.dataset.del);
+      if(t && t.cofMov){
+        const h = state.cofrinho.historico.find(x=>x.txId===t.id);
+        if(h){
+          state.cofrinho.saldo += (h.tipo==='remove') ? h.valor : -h.valor;
+          state.cofrinho.historico = state.cofrinho.historico.filter(x=>x.txId!==t.id);
+        }
+      }
       state.transactions = state.transactions.filter(t=>t.id!==b.dataset.del);
       saveState(); renderAll();
     });
@@ -912,27 +935,34 @@ document.getElementById('formCofrinho').addEventListener('submit', e=>{
     return;
   }
   state.cofrinho.saldo += (tipo==='remove') ? -valor : valor;
-  state.cofrinho.historico.push({tipo, valor, desc, data: todayISO()});
+  const histEntry = {id: uid(), tipo, valor, desc, data: todayISO(), txId:null};
   if(tipo==='remove'){
     const categoria = document.getElementById('cofCategoria').value || 'cofrinho';
+    const txId = uid();
     state.transactions.push({
-      id: uid(), tipo:'income',
+      id: txId, tipo:'income',
       descricao: (desc || 'Retirado do cofrinho'),
       valor, data: todayISO(), categoria, contaId, cofMov:true
     });
+    histEntry.txId = txId;
   } else if(tipo==='add'){
+    const txId = uid();
     state.transactions.push({
-      id: uid(), tipo:'expense',
+      id: txId, tipo:'expense',
       descricao: (desc || 'Guardado no cofrinho'),
       valor, data: todayISO(), categoria:'cofrinho', contaId, cofMov:true
     });
+    histEntry.txId = txId;
   } else if(tipo==='rendimento'){
+    const txId = uid();
     state.transactions.push({
-      id: uid(), tipo:'income',
+      id: txId, tipo:'income',
       descricao: (desc || 'Rendimento do cofrinho'),
       valor, data: todayISO(), categoria:'rendimento', contaId:null
     });
+    histEntry.txId = txId;
   }
+  state.cofrinho.historico.push(histEntry);
   // rendimento entra como receita real (conta no resumo/gráficos), mas sem contaId pra não inflar o saldo em conta — o dinheiro está dentro do cofrinho.
   e.target.reset();
   updateCofForm();
@@ -1100,6 +1130,34 @@ window.addEventListener('resize', ()=>{
 });
 
 loadState();
+
+document.getElementById('btnAjusteManual').addEventListener('click', ()=>{
+  document.getElementById('painelAjusteManual').classList.toggle('hidden');
+  if(!document.getElementById('painelAjusteManual').classList.contains('hidden')){
+    const conta = state.accounts[0];
+    document.getElementById('ajusteSaldoConta').value = conta ? accountBalance(conta).toFixed(2) : '0.00';
+    document.getElementById('ajusteSaldoCofrinho').value = state.cofrinho.saldo.toFixed(2);
+  }
+});
+
+document.getElementById('formAjusteManual').addEventListener('submit', e=>{
+  e.preventDefault();
+  const novoConta = document.getElementById('ajusteSaldoConta').value;
+  const novoCofrinho = document.getElementById('ajusteSaldoCofrinho').value;
+  if(novoConta !== ''){
+    const conta = state.accounts[0];
+    if(conta){
+      const atual = accountBalance(conta);
+      const diff = parseFloat(novoConta) - atual;
+      conta.saldoInicial = (conta.saldoInicial||0) + diff;
+    }
+  }
+  if(novoCofrinho !== ''){
+    state.cofrinho.saldo = parseFloat(novoCofrinho);
+  }
+  saveState(); renderAll();
+  document.getElementById('ajusteHint').textContent = 'Ajustado às ' + new Date().toLocaleTimeString('pt-BR') + '. Nenhuma transação ou histórico foi criado.';
+});
 updateCofForm();
 </script>
 </body>
