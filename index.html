@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Finanças Blaster</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Finanças Sunset</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -58,11 +59,37 @@
     box-shadow:0 8px 24px rgba(0,0,0,0.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
   .card .label{color:var(--muted);font-family:'Quicksand',sans-serif;font-size:12px;font-weight:600;
     text-transform:uppercase;letter-spacing:.4px;}
-  .card .value{font-size:26px;margin-top:8px;font-family:'Quicksand',sans-serif;font-weight:700;color:var(--txt);}
+  .card .value{font-size:26px;margin-top:8px;font-family:'Quicksand',sans-serif;font-weight:700;color:var(--txt);white-space:nowrap;}
   .green{color:var(--green);} .red{color:var(--red);} .amber{color:var(--amber);}
   .cyan{color:var(--sea);} .orange{color:var(--coral);} .purple{color:var(--purple);} .blue{color:var(--sea);}
+  .muted-value{color:var(--muted);}
+  .purple-soft{color:var(--purple) !important;}
+  .has-tooltip{cursor:help;}
+  .swap-stage{position:relative;min-height:48px;}
+  .swap-layer{transition:opacity .45s cubic-bezier(.4,0,.2,1), transform .45s cubic-bezier(.4,0,.2,1);}
+  .swap-main{opacity:1;transform:translateY(0) scale(1);}
+  .swap-alt{position:absolute;left:0;top:0;width:100%;opacity:0;transform:translateY(6px) scale(.97);pointer-events:none;}
+  .has-tooltip:hover .swap-main{opacity:0;transform:translateY(-6px) scale(.97);}
+  .has-tooltip:hover .swap-alt{opacity:1;transform:translateY(0) scale(1);}
   .grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
   @media(max-width:900px){.grid2{grid-template-columns:1fr;}}
+  @media(max-width:640px){
+    .wrap{padding:18px 12px 40px;}
+    h1{font-size:26px;}
+    .sun-header{padding:24px 2px 14px;}
+    .cards{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
+    .card{padding:14px;}
+    .card .value{font-size:21px;}
+    .tabs{gap:6px;}
+    .tab{padding:8px 13px;font-size:13px;}
+    form{grid-template-columns:1fr 1fr;}
+    .filters select,.filters input{min-width:0;flex:1 1 45%;}
+    .toolbar{justify-content:stretch;}
+    .toolbar button{flex:1 1 auto;}
+    table{font-size:12px;}
+    th,td{padding:8px 5px;}
+    .panel{padding:14px;}
+  }
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:18px;
     box-shadow:0 8px 24px rgba(0,0,0,0.3);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
   .panel h2{font-family:'Quicksand',sans-serif;font-size:16px;margin:0 0 14px;font-weight:700;color:var(--coral);}
@@ -127,7 +154,7 @@
 </div>
 <div class="wrap">
   <div class="sun-header">
-    <h1>🌅 Finanças Blaster</h1>
+    <h1>🌅 Finanças Sunset</h1>
     <p class="sub">Seu painel de controle financeiro, leve como um fim de tarde na praia.</p>
   </div>
 
@@ -183,7 +210,7 @@
         <input type="month" id="fMes">
       </div>
       <div style="max-height:420px;overflow:auto;">
-        <table>
+        <table style="min-width:560px;">
           <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Conta</th><th>Tipo</th><th>Valor</th><th></th></tr></thead>
           <tbody id="txTableBody"></tbody>
         </table>
@@ -282,10 +309,10 @@
         <select id="recFreq"><option value="monthly">Mensal</option><option value="weekly">Semanal</option></select>
         <button type="submit">Adicionar recorrência</button>
       </form>
-      <p class="small">Use "Gerar transações pendentes" para lançar automaticamente as recorrências do mês.</p>
+      <p class="small">Cada recorrência cadastrada ganha um botão de pagar (mês ou semana, conforme a frequência).</p>
     </div>
     <div class="panel">
-      <div class="row-between"><h2>Recorrências cadastradas</h2><button class="secondary" id="btnGerarRec" style="width:auto;">Gerar transações pendentes</button></div>
+      <h2>Recorrências cadastradas</h2>
       <div id="recList"></div>
     </div>
   </div>
@@ -380,6 +407,7 @@ function renderAll(){
   renderCofrinho();
   renderDevedores();
   renderDividas();
+  autoFitValues();
 }
 
 function accountBalance(acc){
@@ -390,6 +418,20 @@ function accountBalance(acc){
     }
   });
   return bal;
+}
+
+function autoFitValues(){
+  document.querySelectorAll('.card .value').forEach(el=>{
+    el.style.fontSize = '';
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    const minSize = 13;
+    let guard = 0;
+    while(el.scrollWidth > el.clientWidth + 1 && size > minSize && guard < 20){
+      size -= 1;
+      el.style.fontSize = size + 'px';
+      guard++;
+    }
+  });
 }
 
 function renderSummary(){
@@ -403,16 +445,32 @@ function renderSummary(){
   });
   const saldoConta = state.accounts.reduce((s,a)=>s+accountBalance(a),0);
   const saldoTotal = saldoConta + state.cofrinho.saldo;
+  const totalReceber = state.devedores.reduce((s,d)=>s+d.valor,0);
+  const totalPagar = state.dividas.reduce((s,d)=>s+d.valor,0);
+  const saldoProjetado = saldoTotal + totalReceber - totalPagar;
   const cards = [
-    {label:'Saldo total', value: fmt(saldoTotal), cls: saldoTotal>=0?'green':'red'},
+    {label:'Saldo total', value: fmt(saldoTotal), cls: saldoTotal>=0?'green':'red', tooltip:true, tooltipValue: fmt(saldoProjetado)},
     {label:'Saldo em conta', value: fmt(saldoConta), cls: saldoConta>=0?'cyan':'red'},
     {label:'Cofrinho', value: fmt(state.cofrinho.saldo), cls:'amber'},
     {label:'Receitas do mês', value: fmt(receitas), cls:'green'},
-    {label:'Despesas do mês', value: fmt(despesas), cls:'red'},
+    {label:'Despesas do mês', value: fmt(despesas).replace('R$ ', 'R$ -'), cls:'red'},
     {label:'Resultado do mês', value: fmt(receitas-despesas), cls:(receitas-despesas)>=0?'green':'red'},
   ];
   document.getElementById('summaryCards').innerHTML = cards.map(c=>
-    `<div class="card"><div class="label">${c.label}</div><div class="value ${c.cls}">${c.value}</div></div>`
+    c.tooltip
+      ? `<div class="card has-tooltip">
+          <div class="swap-stage">
+            <div class="swap-layer swap-main">
+              <div class="label">${c.label}</div>
+              <div class="value ${c.cls}">${c.value}</div>
+            </div>
+            <div class="swap-layer swap-alt">
+              <div class="label purple-soft">Sem pendências</div>
+              <div class="value purple-soft">${c.tooltipValue}</div>
+            </div>
+          </div>
+        </div>`
+      : `<div class="card"><div class="label">${c.label}</div><div class="value ${c.cls}">${c.value}</div></div>`
   ).join('');
 }
 
@@ -545,24 +603,86 @@ function renderGoals(){
   });
 }
 
+function periodKeyFor(freq, dateStr){
+  if(freq==='monthly') return dateStr.slice(0,7);
+  const d = new Date(dateStr+'T00:00:00');
+  const day = d.getDay();
+  const diff = (day===0?-6:1-day);
+  const monday = new Date(d);
+  monday.setDate(d.getDate()+diff);
+  return monday.toISOString().slice(0,10);
+}
+function periodEndFor(freq, dateStr){
+  if(freq==='monthly'){
+    const [y,m] = dateStr.split('-').map(Number);
+    return new Date(y, m, 0).toISOString().slice(0,10);
+  }
+  const key = periodKeyFor('weekly', dateStr);
+  const monday = new Date(key+'T00:00:00');
+  monday.setDate(monday.getDate()+6);
+  return monday.toISOString().slice(0,10);
+}
+
 function renderRecurring(){
   const el = document.getElementById('recList');
   if(state.recurring.length===0){ el.innerHTML = '<div class="empty">Nenhuma recorrência cadastrada.</div>'; return; }
-  el.innerHTML = state.recurring.map(r=>`
+  const today = todayISO();
+  el.innerHTML = state.recurring.map(r=>{
+    const curKey = periodKeyFor(r.freq, today);
+    const lastKey = r.ultimo ? periodKeyFor(r.freq, r.ultimo) : null;
+    const pago = lastKey === curKey;
+    const periodEnd = periodEndFor(r.freq, today);
+    const daysLeft = Math.round((new Date(periodEnd) - new Date(today))/86400000);
+    const avisoVencimento = !pago && daysLeft<=1;
+    const freqLabel = r.freq==='monthly' ? 'mês' : 'semana';
+    return `
     <div class="row-between" style="padding:10px 0;border-bottom:1px solid var(--border);">
       <div>
-        <strong>${r.descricao}</strong>
-        <div class="small">${r.categoria} · ${r.freq==='monthly'?'Mensal':'Semanal'} · Último lançamento: ${r.ultimo?formatDate(r.ultimo):'nunca'}</div>
+        <strong>${r.descricao}</strong> ${avisoVencimento?'<span class="pill expense" title="Confere se já pagou">⚠️ vence logo</span>':''}
+        <div class="small">${r.categoria} · ${r.freq==='monthly'?'Mensal':'Semanal'} · Último pagamento: ${r.ultimo?formatDate(r.ultimo):'nunca'}</div>
       </div>
       <div style="text-align:right;">
         <div class="${r.tipo==='income'?'green':'red'}" style="font-weight:700;">${r.tipo==='income'?'+':'-'}${fmt(r.valor)}</div>
-        <button class="danger-btn" data-delrec="${r.id}" style="margin-top:6px;">Excluir</button>
+        <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;flex-wrap:wrap;">
+          ${pago
+            ? `<span class="pill income">✅ pago</span><button class="secondary" data-undorec="${r.id}" style="width:auto;font-size:12px;padding:5px 9px;">Desfazer</button>`
+            : `<button class="secondary" data-payrec="${r.id}" style="width:auto;font-size:12px;padding:5px 9px;">Pagar ${freqLabel}</button>`
+          }
+          <button class="danger-btn" data-delrec="${r.id}">Excluir</button>
+        </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
   el.querySelectorAll('[data-delrec]').forEach(b=>{
     b.addEventListener('click', ()=>{
       state.recurring = state.recurring.filter(r=>r.id!==b.dataset.delrec);
       saveState(); renderRecurring();
+    });
+  });
+
+  el.querySelectorAll('[data-payrec]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const r = state.recurring.find(x=>x.id===b.dataset.payrec);
+      const contaId = state.accounts[0] ? state.accounts[0].id : null;
+      const txId = uid();
+      state.transactions.push({
+        id: txId, tipo:r.tipo, descricao:r.descricao+' (recorrente)',
+        valor:r.valor, data: todayISO(), categoria:r.categoria, contaId
+      });
+      r.ultimo = todayISO();
+      r.lastTxId = txId;
+      saveState(); renderAll();
+    });
+  });
+
+  el.querySelectorAll('[data-undorec]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const r = state.recurring.find(x=>x.id===b.dataset.undorec);
+      if(r.lastTxId) state.transactions = state.transactions.filter(t=>t.id!==r.lastTxId);
+      r.ultimo = null;
+      r.lastTxId = null;
+      saveState(); renderAll();
     });
   });
 }
@@ -759,26 +879,6 @@ document.getElementById('formRec').addEventListener('submit', e=>{
   });
   e.target.reset();
   saveState(); renderRecurring();
-});
-
-document.getElementById('btnGerarRec').addEventListener('click', ()=>{
-  const today = todayISO();
-  const contaPadrao = state.accounts[0] ? state.accounts[0].id : null;
-  let count = 0;
-  state.recurring.forEach(r=>{
-    const lastYM = r.ultimo ? r.ultimo.slice(0,7) : null;
-    const curYM = today.slice(0,7);
-    if(lastYM !== curYM){
-      state.transactions.push({
-        id: uid(), tipo:r.tipo, descricao:r.descricao+' (recorrente)',
-        valor:r.valor, data: today, categoria:r.categoria, contaId: contaPadrao
-      });
-      r.ultimo = today;
-      count++;
-    }
-  });
-  saveState(); renderAll();
-  alert(count>0 ? `${count} transação(ões) recorrente(s) lançada(s) este mês.` : 'Nenhuma recorrência pendente para este mês.');
 });
 
 ['fBusca','fTipo','fCategoria','fConta','fMes'].forEach(id=>{
@@ -991,6 +1091,12 @@ document.getElementById('btnClear').addEventListener('click', async ()=>{
   state = { transactions: [], accounts: [{id:uid(), nome:'Carteira', saldoInicial:0}], goals: [], recurring: [], cofrinho:{saldo:0,historico:[]}, devedores: [], dividas: [] };
   saveState(); renderAll();
   alert('Dados apagados. Se precisar voltar atrás, importe o arquivo "' + filename + '" na aba Dados.');
+});
+
+let resizeTimer;
+window.addEventListener('resize', ()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(autoFitValues, 150);
 });
 
 loadState();
