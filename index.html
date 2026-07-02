@@ -412,11 +412,13 @@ document.querySelectorAll('.tab').forEach(t=>{
     t.classList.add('active');
     document.querySelectorAll('[id^="tab-"]').forEach(p=>p.classList.add('hidden'));
     document.getElementById('tab-'+t.dataset.tab).classList.remove('hidden');
+    if(t.dataset.tab==='dashboard' && chartsDirty) renderCharts();
   });
 });
 
 // ---------- RENDER ----------
 function renderAll(){
+  _balanceCache = null;
   renderSummary();
   renderAccountsSelect();
   renderTx();
@@ -431,27 +433,38 @@ function renderAll(){
   autoFitValues();
 }
 
+let _balanceCache = null;
 function accountBalance(acc){
-  let bal = acc.saldoInicial||0;
-  state.transactions.forEach(t=>{
-    if(t.contaId===acc.id){
-      bal += t.tipo==='income' ? t.valor : -t.valor;
-    }
-  });
-  return bal;
+  if(!_balanceCache){
+    _balanceCache = {};
+    state.accounts.forEach(a=>{ _balanceCache[a.id] = a.saldoInicial||0; });
+    state.transactions.forEach(t=>{
+      if(_balanceCache[t.contaId] !== undefined){
+        _balanceCache[t.contaId] += t.tipo==='income' ? t.valor : -t.valor;
+      }
+    });
+  }
+  return _balanceCache[acc.id] !== undefined ? _balanceCache[acc.id] : (acc.saldoInicial||0);
 }
 
 function autoFitValues(){
+  const canvas = autoFitValues._canvas || (autoFitValues._canvas = document.createElement('canvas'));
+  const ctx = canvas.getContext('2d');
   document.querySelectorAll('.card .value').forEach(el=>{
     el.style.fontSize = '';
-    let size = parseFloat(getComputedStyle(el).fontSize);
+    const cs = getComputedStyle(el);
+    const baseSize = parseFloat(cs.fontSize);
+    const available = el.clientWidth;
     const minSize = 13;
-    let guard = 0;
-    while(el.scrollWidth > el.clientWidth + 1 && size > minSize && guard < 20){
+    let size = baseSize;
+    ctx.font = cs.fontWeight + ' ' + size + 'px ' + cs.fontFamily;
+    let width = ctx.measureText(el.textContent).width;
+    while(width > available + 1 && size > minSize){
       size -= 1;
-      el.style.fontSize = size + 'px';
-      guard++;
+      ctx.font = cs.fontWeight + ' ' + size + 'px ' + cs.fontFamily;
+      width = ctx.measureText(el.textContent).width;
     }
+    if(size !== baseSize) el.style.fontSize = size + 'px';
   });
 }
 
@@ -816,8 +829,14 @@ function renderDividas(){
 }
 
 
-let chartMonthly, chartCategory;
+let chartMonthly, chartCategory, chartsDirty = true;
 function renderCharts(){
+  const dashboardEl = document.getElementById('tab-dashboard');
+  if(dashboardEl && dashboardEl.classList.contains('hidden')){
+    chartsDirty = true;
+    return;
+  }
+  chartsDirty = false;
   const months = [];
   const now = new Date();
   for(let i=5;i>=0;i--){
